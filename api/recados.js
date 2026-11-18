@@ -1,5 +1,6 @@
-// Mural de recados: cada recado é um arquivo JSON no Vercel Blob (prefixo recados/).
-const { put, list, del } = require("@vercel/blob");
+// Mural de recados: cada recado é um arquivo JSON num Vercel Blob privado (prefixo recados/),
+// lido e gravado só por esta função.
+const { put, list, del, get } = require("@vercel/blob");
 
 const PREFIXO = "recados/";
 
@@ -18,8 +19,9 @@ async function lerRecados() {
   const blobs = await listarBlobs();
   const itens = await Promise.all(blobs.map(async (b) => {
     try {
-      const r = await fetch(b.url, { cache: "no-store" });
-      const j = await r.json();
+      const r = await get(b.pathname, { access: "private", useCache: false });
+      if (!r || !r.stream) return null;
+      const j = JSON.parse(await new Response(r.stream).text());
       return { id: b.pathname, nome: String(j.nome || ""), texto: String(j.texto || ""), quando: Number(j.quando) || 0 };
     } catch (e) { return null; }
   }));
@@ -47,7 +49,7 @@ module.exports = async (req, res) => {
       const quando = Date.now();
       const caminho = PREFIXO + quando + "-" + Math.random().toString(36).slice(2, 8) + ".json";
       await put(caminho, JSON.stringify({ nome, texto, quando }), {
-        access: "public", contentType: "application/json", addRandomSuffix: false
+        access: "private", contentType: "application/json", addRandomSuffix: false
       });
       return res.status(201).json({ recado: { id: caminho, nome, texto, quando } });
     }
